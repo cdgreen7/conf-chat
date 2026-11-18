@@ -1,2 +1,2 @@
 # conf-chat
-A P2P Chat
+a p2p chat system built on the OpenDHT distributed hash table

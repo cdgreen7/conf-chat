@@ -1,0 +1,33 @@
+version = 1
+revision = 5
+requires-python = ">=3.13"
+
+[[package]]
+name = "conf-chat"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "opendht" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "opendht", specifier = ">=4.4.99" }]
+
+[[package]]
+name = "opendht"
+version = "4.4.99"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/6f/6ef32521d4be83c2f262d0e6b9510bfdf030283f12ec879e5ac50c14fc28/opendht-4.4.99-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:8976ffb97b6ac11327e75493c00a43dc24575ffdba6068841d8d8c5753558bb5", size = 3706264, upload-time = "2026-10-27T14:38:44.447Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/f3/f8a60280ed135d6db87f261284581338065f5c8b3452851af73cf568e17c/opendht-4.4.99-cp313-cp313-manylinux_2_34_aarch64.whl", hash = "sha256:834133620a8d9a996aa7c6e45343ea44cae28b5fb963e1fd734aa8defa4f949d", size = 6152415, upload-time = "2026-10-27T14:38:45.951Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/58/eee43b51cb0ed9a8835a2ec4cc1afc6d0921d174b761135d303827bf0f28/opendht-4.4.99-cp313-cp313-manylinux_2_34_x86_64.whl", hash = "sha256:60b155fa361884cee85a58a3fe78707b5948d4d7c0cf96d398305a85bfbc3583", size = 6539488, upload-time = "2026-10-27T14:38:47.449Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/eb/fa185b44cfc1aa81dabfffd4019af3c669e090792abba9e72230bcd88b2f/opendht-4.4.99-cp313-cp313-win_amd64.whl", hash = "sha256:efe55498311bfaddc5fcac59ef04f4f8c53a14cdf645bdb823be43cf49c297fb", size = 5498097, upload-time = "2026-10-27T14:38:49.116Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/8f/0ce2f34e8edd4e175704321ed3d88e5f0d91ebeee5cd258d200ab8a028cb/opendht-4.4.99-cp314-cp314-macosx_15_0_arm64.whl", hash = "sha256:39c101a054ef9f93558c72920d59ffcc25ebbe3becbc184c5524b302dfbc9eb9", size = 3708546, upload-time = "2026-10-27T14:38:50.844Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/44/9c331a4277bc9b15d6b85a1b65b948370f8d38247785c782253e863ae3d9/opendht-4.4.99-cp314-cp314-manylinux_2_34_aarch64.whl", hash = "sha256:d5c622f8739d8fe38567b58ce71fff59f705e604f987108b014676439418662d", size = 6155392, upload-time = "2026-10-27T14:38:52.222Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/d3/682d411089919d4f4405eea0f43659ab954b90c617e7b2063c2972026a88/opendht-4.4.99-cp314-cp314-manylinux_2_34_x86_64.whl", hash = "sha256:ee49abd66dd856303abc007bc25471428028bf1a6207fd5e1706ff85c62d08ae", size = 6527497, upload-time = "2026-10-27T14:38:54.141Z" },
+    { url = "https://files.pythonhosted.org/packages/76/a3/44604c0dff358392bac23d345b37cd3f55645cc83b0ccff9802f58721148/opendht-4.4.99-cp314-cp314-win_amd64.whl", hash = "sha256:ffd11236faf53227247ecd2919dc8a306983db6ed40fb8d0a527dc3bbcf01174", size = 5674806, upload-time = "2026-10-27T14:38:55.605Z" },
+    { url = "https://files.pythonhosted.org/packages/03/0f/ef146878ea4c4305d52b85254c1a8188a9b216286e8d8f30e90668849c11/opendht-4.4.99-cp315-cp315-macosx_15_0_arm64.whl", hash = "sha256:da41b8f4d7b519c486e06651f34e428782a5d3f882baa126b2b535c42284abac", size = 3708261, upload-time = "2026-10-27T14:38:57.687Z" },
+    { url = "https://files.pythonhosted.org/packages/69/f4/2093a77507826d3fc3b33acb18016efba0179912017116616b98bfffd686/opendht-4.4.99-cp315-cp315-manylinux_2_34_aarch64.whl", hash = "sha256:1cad339e78736dc481e838b42d433d249efec6b22a3ecaf686648cde806c20af", size = 6155326, upload-time = "2026-10-27T14:38:59.342Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/cd/bf51cf294cea42c7d86bbc1c9e963bdfd37401c4a28ab609c5ed881bf20e/opendht-4.4.99-cp315-cp315-manylinux_2_34_x86_64.whl", hash = "sha256:699a7afed6c5f42a2c104c233609c017dcbf25947437a5d9161f869a8eac92ec", size = 6523481, upload-time = "2026-10-27T14:39:01.585Z" },
+    { url = "https://files.pythonhosted.org/packages/58/a6/646b3f1ffd7e7add18d8a5130371e0e72e85b767a25f0acc33bae4d6737e/opendht-4.4.99-cp315-cp315-win_amd64.whl", hash = "sha256:d90875c7e9129ea04559cdcc6496dccb577903716da5e4d30c4c5672e3ce3a47", size = 5675585, upload-time = "2026-10-27T14:39:04.018Z" },
+]
