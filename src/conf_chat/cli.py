@@ -1,9 +1,11 @@
 """Interactive command shell."""
 
 import cmd
+import getpass
 import sys
 import threading
 
+from conf_chat import auth
 from conf_chat.dht import Node
 
 _print_lock = threading.Lock()
@@ -61,6 +63,22 @@ class Shell(cmd.Cmd):
         """status -- show this peer's id, port and number of known peers"""
         print(f"peer {self.node.node_id}  port {self.node.bound_port}  "
               f"peers {self.node.connected_peers()}")
+
+    def do_register(self, line):
+        """register <username> -- create an account (asks for full name and password)"""
+        if not (a := self.args(line, 1, "register <username>")):
+            return
+        full_name = input("Full name: ")
+        password = getpass.getpass("Password: ")
+        if getpass.getpass("Repeat password: ") != password:
+            print("passwords do not match")
+            return
+        try:
+            user = auth.register(self.node, a[0], full_name, password)
+        except auth.AuthError as e:
+            print(e)
+            return
+        print(f"registered {user.username} ({user.full_name})")
 
     def do_quit(self, _):
         """quit -- leave Conf-Chat"""
