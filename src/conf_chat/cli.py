@@ -12,7 +12,7 @@ import sys
 import threading
 
 from conf_chat import auth, friends
-from conf_chat.client import Client
+from conf_chat.client import ChatError, Client
 from conf_chat.dht import Node
 
 _print_lock = threading.Lock()
@@ -42,6 +42,7 @@ class Shell(cmd.Cmd):
         """Ask for an account, run commands until logout, repeat until quit."""
         print("Welcome to Conf-Chat.")
         while not self.quitting:
+            self.at_prompt = False  # notices printed while logging in get no prompt
             if not self.welcome():
                 break
             print("Type 'help' for commands.")
@@ -92,6 +93,7 @@ class Shell(cmd.Cmd):
         self.prompt = f"{user.username}> "
         print(f"Welcome, {user.full_name}!")
         self.client = Client(self.node, user, out=self.notify).start()
+        self.client.sync()  # finish replaying the inbox before showing the prompt
 
     def close(self) -> None:
         """Log out if needed (called when the program exits)."""
@@ -99,6 +101,17 @@ class Shell(cmd.Cmd):
             self.client.close()
             self.client = None
             self.prompt = "> "
+
+    def _try(self, fn, *args) -> bool:
+        """Run a client action, printing ChatError instead of crashing; wait
+        for the resulting events so their output appears before the prompt."""
+        try:
+            fn(*args)
+        except ChatError as e:
+            print(e)
+            return False
+        self.client.sync()
+        return True
 
     def notify(self, text: str) -> None:
         """Print a line from a background thread without wrecking the prompt."""
@@ -155,6 +168,23 @@ class Shell(cmd.Cmd):
             print("no matches")
         for u in results:
             print(f"  {u.username:<20} {u.full_name}")
+
+    @needs_login
+    def do_request(self, line):
+        """request <username> -- ask a user to be your friend"""
+        if (a := self.args(line, 1, "request <username>")):
+            if self._try(self.client.request_friend, a[0]):
+                print(f"friend request sent to {a[0].lower()}")
+
+    @needs_login
+    def do_requests(self, _):
+        """requests -- list friend requests waiting for your answer"""
+        with self.client.lock:
+            pending = dict(self.client.pending)
+        if not pending:
+            print("no pending friend requests")
+        for username, full_name in sorted(pending.items()):
+            print(f"  {username:<20} {full_name}")
 
     @needs_login
     def do_passwd(self, _):
