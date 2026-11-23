@@ -246,6 +246,12 @@ class Shell(cmd.Cmd):
             self._try(self.client.add_member, a[0], a[1])
 
     @needs_login
+    def do_say(self, line):
+        """say <conference> <text> -- send a message to everyone in a conference"""
+        if (a := self.args(line, 2, "say <conference> <text>")):
+            self._try(self.client.say, a[0], a[1])
+
+    @needs_login
     def do_passwd(self, _):
         """passwd -- change your password"""
         old = getpass.getpass("Current password: ")

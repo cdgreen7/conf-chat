@@ -47,6 +47,7 @@ class Conference:
     seen: set[str] = field(default_factory=set)
     replaying: bool = True
     added_by: str | None = None  # who (most recently) added us
+    backlog: list = field(default_factory=list)  # unseen messages found while replaying
 
 
 class Client:
@@ -312,7 +313,22 @@ class Client:
         if conf.added_by and conf.added_by != self.me:
             self.out(f"* {conf.added_by} added you to conference #{conf.name} [{conf.id}] "
                      f"with {', '.join(sorted(conf.members - {self.me}))}")
+        for env in conf.backlog:  # messages sent while we were a member but offline
+            self._show_conf_msg(conf, env)
+        conf.backlog.clear()
         return conf
+
+    def say(self, ref: str, text: str) -> None:
+        conf = self.find_conf(ref)
+        if not text.strip():
+            raise ChatError("empty message")
+        env = make("conf_msg", self.me, conf=conf.id, text=text)
+        self.node.put(conf_key(conf.id), env)
+        self._events.put(env)
+
+    def _show_conf_msg(self, conf: Conference, env: Envelope) -> None:
+        self.seen.add(env.id)  # saved locally, so it is never shown twice
+        self.out(f"[#{conf.name}] {env.sender}{self._when(env)}: {env['text']}")
 
     def add_member(self, ref: str, username: str) -> None:
         conf = self.find_conf(ref)
@@ -350,3 +366,12 @@ class Client:
                 conf.added_by = env.sender
             elif not conf.replaying:
                 self.out(f"[#{conf.name}] {env.sender} added {member}")
+        elif env.type == "conf_msg" and env.sender in conf.members and self.me in conf.members:
+            # Membership is checked as of this point in the log, so messages
+            # from before we were added are never shown.
+            if env.id in self.seen:
+                return
+            if conf.replaying:
+                conf.backlog.append(env)
+            else:
+                self._show_conf_msg(conf, env)
