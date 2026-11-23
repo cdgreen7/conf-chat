@@ -227,7 +227,7 @@ class Shell(cmd.Cmd):
         except ChatError as e:
             print(e)
             return
-        print(f"created conference #{conf.name} [{conf.id}]")
+        print(f"created conference #{conf.name} [{conf.id}]; add friends with 'invite {conf.id} <friend>'")
 
     @needs_login
     def do_confs(self, _):
@@ -238,6 +238,12 @@ class Shell(cmd.Cmd):
                 print("no conferences: start one with 'conf <name>'")
             for c in confs:
                 print(f"  [{c.id}] #{c.name:<16} {', '.join(sorted(c.members))}")
+
+    @needs_login
+    def do_invite(self, line):
+        """invite <conference> <friend> -- add a friend to a conference you are in"""
+        if (a := self.args(line, 2, "invite <conference> <friend>")):
+            self._try(self.client.add_member, a[0], a[1])
 
     @needs_login
     def do_passwd(self, _):

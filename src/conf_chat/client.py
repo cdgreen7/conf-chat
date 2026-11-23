@@ -46,6 +46,7 @@ class Conference:
     members: set[str] = field(default_factory=set)
     seen: set[str] = field(default_factory=set)
     replaying: bool = True
+    added_by: str | None = None  # who (most recently) added us
 
 
 class Client:
@@ -72,6 +73,7 @@ class Client:
             "friend_accept": self._on_friend_accept,
             "friend_deny": self._on_friend_deny,
             "dm": self._on_dm,
+            "conf_invite": self._on_conf_invite,
         }
         self._worker = threading.Thread(target=self._run, name="conf-chat-events", daemon=True)
 
@@ -304,10 +306,31 @@ class Client:
             self._on_conf_event(env)
         conf.replaying = False
         if self.me not in conf.members:
-            del self.confs[conf_id]
+            del self.confs[conf_id]  # e.g. a forged or outdated invite
             return None
         self.subscribe(conf_key(conf_id))
+        if conf.added_by and conf.added_by != self.me:
+            self.out(f"* {conf.added_by} added you to conference #{conf.name} [{conf.id}] "
+                     f"with {', '.join(sorted(conf.members - {self.me}))}")
         return conf
+
+    def add_member(self, ref: str, username: str) -> None:
+        conf = self.find_conf(ref)
+        username = username.lower()
+        with self.lock:
+            if username in conf.members:
+                raise ChatError(f"{username} is already in #{conf.name}")
+            if username not in self.friends:
+                raise ChatError(f"you can only add your friends ({username} is not one)")
+        env = make("conf_add", self.me, conf=conf.id, member=username)
+        self.node.put(conf_key(conf.id), env)  # first the log entry that grants membership...
+        self._deliver(username, make("conf_invite", self.me, to=username, conf=conf.id,
+                                     name=conf.name))  # ...then the notification
+        self._events.put(env)
+
+    def _on_conf_invite(self, env: Envelope) -> None:
+        if env["to"] == self.me:
+            self._join_conf(env["conf"])
 
     def _on_conf_event(self, env: Envelope) -> None:
         conf = self.confs.get(env.get("conf"))
@@ -317,3 +340,13 @@ class Client:
         if env.type == "conf_create" and conf.creator is None:
             conf.creator, conf.name = env.sender, env.get("name", "?")
             conf.members = {env.sender}
+            conf.added_by = env.sender
+        elif env.type == "conf_add" and env.sender in conf.members:  # only members may add
+            member = env["member"]
+            if member in conf.members:
+                return
+            conf.members.add(member)
+            if member == self.me:
+                conf.added_by = env.sender
+            elif not conf.replaying:
+                self.out(f"[#{conf.name}] {env.sender} added {member}")
