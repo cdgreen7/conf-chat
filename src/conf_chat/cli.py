@@ -187,6 +187,15 @@ class Shell(cmd.Cmd):
             print(f"  {username:<20} {full_name}")
 
     @needs_login
+    def do_friends(self, _):
+        """friends -- list your friends and who is online"""
+        status = self.client.friend_status()
+        if not status:
+            print("no friends yet: 'search <name>' then 'request <username>'")
+        for name, online in sorted(status.items(), key=lambda kv: (not kv[1], kv[0])):
+            print(f"  {'●' if online else '○'} {name:<20} {'online' if online else 'offline'}")
+
+    @needs_login
     def do_accept(self, line):
         """accept <username> -- accept a friend request"""
         if (a := self.args(line, 1, "accept <username>")):
