@@ -1,24 +1,104 @@
-"""Interactive command shell."""
+"""Interactive command shell.
+
+Joining Conf-Chat is done with an account: the shell starts by asking the
+user to log in or register, and only then accepts chat commands. Logging
+out returns to that prompt.
+"""
 
 import cmd
+import functools
 import getpass
 import sys
 import threading
 
 from conf_chat import auth
+from conf_chat.client import Client
 from conf_chat.dht import Node
 
 _print_lock = threading.Lock()
 
 
+def needs_login(method):
+    @functools.wraps(method)
+    def wrapper(self, line):
+        if self.client is None:
+            print("log in first")
+            return None
+        return method(self, line)
+    return wrapper
+
+
 class Shell(cmd.Cmd):
-    intro = "Welcome to Conf-Chat. Type 'help' for commands."
     prompt = "> "
 
     def __init__(self, node: Node):
         super().__init__()
         self.node = node
+        self.client: Client | None = None
+        self.quitting = False
         self.at_prompt = False  # True while cmd is waiting for input
+
+    def run(self) -> None:
+        """Ask for an account, run commands until logout, repeat until quit."""
+        print("Welcome to Conf-Chat.")
+        while not self.quitting:
+            if not self.welcome():
+                break
+            print("Type 'help' for commands.")
+            self.cmdloop()
+
+    def welcome(self) -> bool:
+        """Log in or register. Returns False if the user wants to quit."""
+        while True:
+            try:
+                choice = input("login, register or quit? ").strip().lower()
+            except EOFError:
+                print()
+                return False
+            if choice in ("l", "login") and self.login():
+                return True
+            if choice in ("r", "register") and self.register():
+                return True
+            if choice in ("q", "quit", "exit"):
+                return False
+
+    def login(self) -> bool:
+        username = input("Username: ").strip()
+        try:
+            user = auth.login(self.node, username, getpass.getpass("Password: "))
+        except auth.AuthError as e:
+            print(e)
+            return False
+        self.start_session(user)
+        return True
+
+    def register(self) -> bool:
+        username = input("Username: ").strip()
+        full_name = input("Full name: ")
+        password = getpass.getpass("Password: ")
+        if getpass.getpass("Repeat password: ") != password:
+            print("passwords do not match")
+            return False
+        try:
+            auth.register(self.node, username, full_name, password)
+            user = auth.login(self.node, username, password)
+        except auth.AuthError as e:
+            print(e)
+            return False
+        self.start_session(user)
+        return True
+
+    def start_session(self, user: auth.User) -> None:
+        self.prompt = f"{user.username}> "
+        print(f"Welcome, {user.full_name}!")
+        self.client = Client(self.node, user, out=self.notify).start()
+
+    def close(self) -> None:
+        """Log out if needed (called when the program exits)."""
+        if self.client:
+            self.client.close()
+            self.client = None
+            self.prompt = "> "
 
     def notify(self, text: str) -> None:
         """Print a line from a background thread without wrecking the prompt."""
@@ -64,24 +144,17 @@ class Shell(cmd.Cmd):
         print(f"peer {self.node.node_id}  port {self.node.bound_port}  "
               f"peers {self.node.connected_peers()}")
 
-    def do_register(self, line):
-        """register <username> -- create an account (asks for full name and password)"""
-        if not (a := self.args(line, 1, "register <username>")):
-            return
-        full_name = input("Full name: ")
-        password = getpass.getpass("Password: ")
-        if getpass.getpass("Repeat password: ") != password:
-            print("passwords do not match")
-            return
-        try:
-            user = auth.register(self.node, a[0], full_name, password)
-        except auth.AuthError as e:
-            print(e)
-            return
-        print(f"registered {user.username} ({user.full_name})")
+    @needs_login
+    def do_logout(self, _):
+        """logout -- log out of Conf-Chat"""
+        self.close()
+        print("Logged out.")
+        return True  # back to the login/register prompt
 
     def do_quit(self, _):
-        """quit -- leave Conf-Chat"""
+        """quit -- log out and leave Conf-Chat"""
+        self.close()
+        self.quitting = True
         return True
 
     do_exit = do_quit

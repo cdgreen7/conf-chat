@@ -34,14 +34,16 @@ def main():
         print(f"Connected: {node.connected_peers()} peer(s) found")
     else:
         print("No other peers found yet; you are the first peer (others will find you).")
+    shell = Shell(node)
     try:
         if args.seed:
             run_seed()
         else:
-            Shell(node).cmdloop()
+            shell.run()
     except KeyboardInterrupt:
         print()
     finally:
+        shell.close()
         node.stop()
 
 

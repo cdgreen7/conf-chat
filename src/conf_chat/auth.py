@@ -6,6 +6,7 @@ never stored, only a salted scrypt hash.
 """
 
 import hashlib
+import hmac
 import os
 import re
 from dataclasses import dataclass
@@ -63,3 +64,19 @@ def register(node, username: str, full_name: str, password: str) -> User:
         raise AuthError(f"username '{username}' is already taken")
     node.put(user_key(username), _record(username, full_name, password), permanent=True)
     return User(username, full_name)
+
+
+def _verify(record: Envelope, password: str) -> bool:
+    expected = hash_password(password, bytes.fromhex(record["salt"]))
+    return hmac.compare_digest(expected, record["pw_hash"])
+
+
+def login(node, username: str, password: str) -> User:
+    username = username.lower()
+    record = lookup(node, username)
+    if record is None or not _verify(record, password):
+        raise AuthError("wrong username or password")
+    # Re-announce our account record from this peer while we are online so
+    # it stays in the DHT even if the peer that registered it is gone.
+    node.put(user_key(username), record, permanent=True, wait=False)
+    return User(username, record["full_name"])
