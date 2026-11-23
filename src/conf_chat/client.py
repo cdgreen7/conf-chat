@@ -10,6 +10,8 @@ envelopes; a worker thread handles them (and may use the DHT freely).
 import queue
 import threading
 import time
+import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable
 
@@ -27,6 +29,25 @@ def inbox(username: str) -> str:
     return f"inbox:{username}"
 
 
+def conf_key(conf_id: str) -> str:
+    return f"conf:{conf_id}"
+
+
+@dataclass
+class Conference:
+    """State rebuilt by replaying the conference log `conf:<id>` in order.
+
+    Membership is decided by the log itself: a member can only be added by
+    someone who is already a member at that point in the log, so peers can
+    reject forged entries without any central authority."""
+    id: str
+    name: str = "?"
+    creator: str | None = None
+    members: set[str] = field(default_factory=set)
+    seen: set[str] = field(default_factory=set)
+    replaying: bool = True
+
+
 class Client:
     def __init__(self, node, user: User, out: Callable[[str], None] = print,
                  store: Store | None = None):
@@ -41,6 +62,7 @@ class Client:
         self.pending: dict[str, str] = {}  # incoming requests: username -> full name
         self.outgoing: set[str] = set()  # usernames we sent requests to
         self.presence: dict[str, Envelope] = {}  # friend -> newest presence envelope
+        self.confs: dict[str, Conference] = {}  # conferences we are in
         self._stopping = threading.Event()
         self._heartbeat = threading.Thread(target=self._beat, name="conf-chat-presence", daemon=True)
         self._events: queue.Queue = queue.Queue()
@@ -113,6 +135,9 @@ class Client:
         with self.lock:
             if env.type == "presence":  # frequent and idempotent: not de-duplicated
                 self._on_presence(env)
+                return
+            if env.type.startswith("conf_") and env.type != "conf_invite":
+                self._on_conf_event(env)  # de-duplicated per conference, see _join_conf
                 return
             if env.id in self.seen:  # OpenDHT may deliver a value more than once
                 return
@@ -248,3 +273,47 @@ class Client:
         with self.lock:
             names = sorted(self.friends)
         return {f: friends.is_online(friends.latest_presence(self.node, f)) for f in names}
+
+    def create_conf(self, name: str) -> Conference:
+        name = name.strip()
+        if not name:
+            raise ChatError("conference needs a name")
+        conf_id = uuid.uuid4().hex[:6]
+        self.node.put(conf_key(conf_id), make("conf_create", self.me, conf=conf_id, name=name))
+        with self.lock:
+            return self._join_conf(conf_id)
+
+    def find_conf(self, ref: str) -> Conference:
+        """Look a conference up by id or (unique) name."""
+        with self.lock:
+            if ref in self.confs:
+                return self.confs[ref]
+            matches = [c for c in self.confs.values() if c.name.lower() == ref.lower()]
+        if len(matches) == 1:
+            return matches[0]
+        raise ChatError(f"no conference '{ref}'" if not matches else
+                        f"several conferences are called '{ref}'; use the id")
+
+    def _join_conf(self, conf_id: str) -> Conference | None:
+        """Replay a conference log; keep following it only if we are a member.
+        Caller holds self.lock."""
+        if conf_id in self.confs:
+            return self.confs[conf_id]
+        conf = self.confs[conf_id] = Conference(conf_id)
+        for env in self.node.get(conf_key(conf_id)):
+            self._on_conf_event(env)
+        conf.replaying = False
+        if self.me not in conf.members:
+            del self.confs[conf_id]
+            return None
+        self.subscribe(conf_key(conf_id))
+        return conf
+
+    def _on_conf_event(self, env: Envelope) -> None:
+        conf = self.confs.get(env.get("conf"))
+        if conf is None or env.id in conf.seen:
+            return
+        conf.seen.add(env.id)
+        if env.type == "conf_create" and conf.creator is None:
+            conf.creator, conf.name = env.sender, env.get("name", "?")
+            conf.members = {env.sender}

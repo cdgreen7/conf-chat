@@ -218,6 +218,28 @@ class Shell(cmd.Cmd):
             self._try(self.client.send_message, a[0], a[1])
 
     @needs_login
+    def do_conf(self, line):
+        """conf <name> -- start a new conference chat"""
+        if not (a := self.args(line, 1, "conf <name>")):
+            return
+        try:
+            conf = self.client.create_conf(a[0])
+        except ChatError as e:
+            print(e)
+            return
+        print(f"created conference #{conf.name} [{conf.id}]")
+
+    @needs_login
+    def do_confs(self, _):
+        """confs -- list your conferences and their members"""
+        with self.client.lock:
+            confs = list(self.client.confs.values())
+            if not confs:
+                print("no conferences: start one with 'conf <name>'")
+            for c in confs:
+                print(f"  [{c.id}] #{c.name:<16} {', '.join(sorted(c.members))}")
+
+    @needs_login
     def do_passwd(self, _):
         """passwd -- change your password"""
         old = getpass.getpass("Current password: ")
