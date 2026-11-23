@@ -80,3 +80,14 @@ def login(node, username: str, password: str) -> User:
     # it stays in the DHT even if the peer that registered it is gone.
     node.put(user_key(username), record, permanent=True, wait=False)
     return User(username, record["full_name"])
+
+
+def change_password(node, user: User, old_password: str, new_password: str) -> None:
+    """Publish a new account record; the newest record wins on lookup."""
+    record = lookup(node, user.username)
+    if record is None or not _verify(record, old_password):
+        raise AuthError("current password is wrong")
+    _check_password(new_password)
+    node.cancel_permanent(user_key(user.username))  # stop re-announcing the old hash
+    node.put(user_key(user.username), _record(user.username, user.full_name, new_password),
+             permanent=True)

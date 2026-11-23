@@ -145,6 +145,21 @@ class Shell(cmd.Cmd):
               f"peers {self.node.connected_peers()}")
 
     @needs_login
+    def do_passwd(self, _):
+        """passwd -- change your password"""
+        old = getpass.getpass("Current password: ")
+        new = getpass.getpass("New password: ")
+        if getpass.getpass("Repeat new password: ") != new:
+            print("passwords do not match")
+            return
+        try:
+            auth.change_password(self.node, self.client.user, old, new)
+        except auth.AuthError as e:
+            print(e)
+            return
+        print("Password changed.")
+
+    @needs_login
     def do_logout(self, _):
         """logout -- log out of Conf-Chat"""
         self.close()
