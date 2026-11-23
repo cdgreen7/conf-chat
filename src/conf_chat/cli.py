@@ -252,6 +252,13 @@ class Shell(cmd.Cmd):
             self._try(self.client.say, a[0], a[1])
 
     @needs_login
+    def do_leave(self, line):
+        """leave <conference> -- leave a conference (you need a new invite to come back)"""
+        if (a := self.args(line, 1, "leave <conference>")):
+            if self._try(self.client.leave_conf, a[0]):
+                print(f"left {a[0]}")
+
+    @needs_login
     def do_passwd(self, _):
         """passwd -- change your password"""
         old = getpass.getpass("Current password: ")
@@ -268,7 +275,7 @@ class Shell(cmd.Cmd):
 
     @needs_login
     def do_logout(self, _):
-        """logout -- log out of Conf-Chat"""
+        """logout -- log out of Conf-Chat (this also leaves all your conferences)"""
         self.close()
         print("Logged out.")
         return True  # back to the login/register prompt

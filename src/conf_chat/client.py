@@ -92,7 +92,10 @@ class Client:
         return self
 
     def close(self) -> None:
-        """Log out: announce we are offline, stop listening, stop the worker."""
+        """Log out: leave every conference (leaving the system means leaving
+        its conferences), announce we are offline, stop listening."""
+        for conf_id in list(self.confs):
+            self.leave_conf(conf_id)
         self._stopping.set()
         self._heartbeat.join(timeout=5)
         self._announce(online=False)
@@ -157,11 +160,16 @@ class Client:
             self.pending.update(state.get("pending", {}))
             for name in state.get("friends", []):
                 self._add_friend(name)
+            # Normally empty (logout leaves all conferences); non-empty only if
+            # the previous session crashed, in which case we are still a member.
+            for conf_id in state.get("confs", []):
+                self._join_conf(conf_id, announce=False)
 
     def _save(self) -> None:
         with self.lock:
             state = {"seen": sorted(self.seen), "friends": sorted(self.friends),
-                     "outgoing": sorted(self.outgoing), "pending": dict(self.pending)}
+                     "outgoing": sorted(self.outgoing), "pending": dict(self.pending),
+                     "confs": sorted(self.confs)}
         self.store.save(state)
 
     def _deliver(self, to: str, env: Envelope) -> None:
@@ -297,7 +305,7 @@ class Client:
         raise ChatError(f"no conference '{ref}'" if not matches else
                         f"several conferences are called '{ref}'; use the id")
 
-    def _join_conf(self, conf_id: str) -> Conference | None:
+    def _join_conf(self, conf_id: str, announce: bool = True) -> Conference | None:
         """Replay a conference log; keep following it only if we are a member.
         Caller holds self.lock."""
         if conf_id in self.confs:
@@ -307,10 +315,10 @@ class Client:
             self._on_conf_event(env)
         conf.replaying = False
         if self.me not in conf.members:
-            del self.confs[conf_id]  # e.g. a forged or outdated invite
+            del self.confs[conf_id]  # e.g. an old invite from before we left
             return None
         self.subscribe(conf_key(conf_id))
-        if conf.added_by and conf.added_by != self.me:
+        if announce and conf.added_by and conf.added_by != self.me:
             self.out(f"* {conf.added_by} added you to conference #{conf.name} [{conf.id}] "
                      f"with {', '.join(sorted(conf.members - {self.me}))}")
         for env in conf.backlog:  # messages sent while we were a member but offline
@@ -325,6 +333,13 @@ class Client:
         env = make("conf_msg", self.me, conf=conf.id, text=text)
         self.node.put(conf_key(conf.id), env)
         self._events.put(env)
+
+    def leave_conf(self, ref: str) -> None:
+        conf = self.find_conf(ref)
+        self.node.put(conf_key(conf.id), make("conf_leave", self.me, conf=conf.id))
+        with self.lock:
+            self.unsubscribe(conf_key(conf.id))
+            self.confs.pop(conf.id, None)
 
     def _show_conf_msg(self, conf: Conference, env: Envelope) -> None:
         self.seen.add(env.id)  # saved locally, so it is never shown twice
@@ -366,9 +381,15 @@ class Client:
                 conf.added_by = env.sender
             elif not conf.replaying:
                 self.out(f"[#{conf.name}] {env.sender} added {member}")
+        elif env.type == "conf_leave" and env.sender in conf.members:  # you can only remove yourself
+            conf.members.discard(env.sender)
+            if env.sender == self.me:
+                conf.backlog.clear()  # anything before we left is not for us any more
+            elif not conf.replaying:
+                self.out(f"[#{conf.name}] {env.sender} left")
         elif env.type == "conf_msg" and env.sender in conf.members and self.me in conf.members:
             # Membership is checked as of this point in the log, so messages
-            # from before we were added are never shown.
+            # from before we were (re-)added, or after we left, are never shown.
             if env.id in self.seen:
                 return
             if conf.replaying:
