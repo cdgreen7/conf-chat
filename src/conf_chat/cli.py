@@ -187,6 +187,19 @@ class Shell(cmd.Cmd):
             print(f"  {username:<20} {full_name}")
 
     @needs_login
+    def do_accept(self, line):
+        """accept <username> -- accept a friend request"""
+        if (a := self.args(line, 1, "accept <username>")):
+            self._try(self.client.accept_friend, a[0])
+
+    @needs_login
+    def do_deny(self, line):
+        """deny <username> -- decline a friend request"""
+        if (a := self.args(line, 1, "deny <username>")):
+            if self._try(self.client.deny_friend, a[0]):
+                print(f"declined {a[0].lower()}")
+
+    @needs_login
     def do_passwd(self, _):
         """passwd -- change your password"""
         old = getpass.getpass("Current password: ")

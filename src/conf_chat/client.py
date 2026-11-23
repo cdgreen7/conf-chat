@@ -40,6 +40,8 @@ class Client:
         self._listens: dict[str, object] = {}
         self._handlers: dict[str, Callable[[Envelope], None]] = {
             "friend_request": self._on_friend_request,
+            "friend_accept": self._on_friend_accept,
+            "friend_deny": self._on_friend_deny,
         }
         self._worker = threading.Thread(target=self._run, name="conf-chat-events", daemon=True)
 
@@ -127,3 +129,35 @@ class Client:
             self.pending[env.sender] = env.get("full_name", "")
             self.out(f"* friend request from {env.sender} ({env.get('full_name', '')}): "
                      f"'accept {env.sender}' or 'deny {env.sender}'")
+
+    def accept_friend(self, username: str) -> None:
+        username = username.lower()
+        with self.lock:
+            if username not in self.pending:
+                raise ChatError(f"no friend request from {username}")
+        env = make("friend_accept", self.me, to=username)
+        self._deliver(username, env)
+        self._record(env)
+
+    def deny_friend(self, username: str) -> None:
+        username = username.lower()
+        with self.lock:
+            if username not in self.pending:
+                raise ChatError(f"no friend request from {username}")
+        # Only recorded in our own inbox: the requester is not told.
+        self._record(make("friend_deny", self.me, to=username))
+
+    def _on_friend_accept(self, env: Envelope) -> None:
+        if env.sender == self.me:  # we accepted someone
+            other = env["to"]
+            self.pending.pop(other, None)
+            self.friends.add(other)
+            self.out(f"* you are now friends with {other}")
+        elif env["to"] == self.me and env.sender in self.outgoing:  # they accepted us
+            self.outgoing.discard(env.sender)
+            self.friends.add(env.sender)
+            self.out(f"* {env.sender} accepted your friend request")
+
+    def _on_friend_deny(self, env: Envelope) -> None:
+        if env.sender == self.me:
+            self.pending.pop(env["to"], None)
