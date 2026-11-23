@@ -6,18 +6,25 @@ from conf_chat.dht import Node
 
 def parse_args():
     p = argparse.ArgumentParser(description="Conf-Chat: P2P chat on OpenDHT")
-    p.add_argument("--port", type=int, default=4222, help="UDP port for this node (default 4222)")
-    p.add_argument("--bootstrap", metavar="HOST:PORT", help="any existing Conf-Chat node to join through")
+    p.add_argument("--port", type=int, default=0,
+                   help="UDP port for this peer (default: any free port)")
+    p.add_argument("--bootstrap", metavar="HOST:PORT",
+                   help="address of a running peer; only needed if peers are on another "
+                        "network (peers on the same network are found automatically)")
+    p.add_argument("--no-discovery", action="store_true",
+                   help="don't look for peers on the local network")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
     node = Node(args.port)
-    node.start(args.bootstrap)
-    print(f"Node {node.node_id} listening on UDP {node.bound_port}")
-    if args.bootstrap:
-        print(f"Bootstrapped via {args.bootstrap}: {node.connected_peers()} peer(s) known")
+    print("Joining the Conf-Chat network...")
+    if node.start(args.bootstrap, discover=not args.no_discovery):
+        print(f"Connected: {node.connected_peers()} peer(s) found")
+    else:
+        print("No other peers found yet; you are the first peer (others will find you).")
+    print(f"This peer: UDP port {node.bound_port}, id {node.node_id}")
     try:
         while True:
             time.sleep(1)

@@ -59,18 +59,26 @@ OpenDHT build guide first.
 
 ## Running
 
-Start the first peer:
+Start a peer in each terminal (or on each machine):
 
 ```bash
-uv run conf-chat --port 4222
+uv run conf-chat
 ```
 
-Start more peers, each bootstrapping through any peer that is already running:
+Peers on the same local network find each other automatically, so no
+addresses or configuration are needed. The first peer simply waits for
+others, and peers can join or leave at any time.
+
+If peers are on different networks, or the network blocks multicast (some
+campus Wi-Fi does), point a new peer at any running peer instead:
 
 ```bash
-uv run conf-chat --port 4223 --bootstrap 127.0.0.1:4222
-uv run conf-chat --port 4224 --bootstrap 127.0.0.1:4223
+uv run conf-chat --port 4222                             # a peer with a known port
+uv run conf-chat --bootstrap <that-peer's-ip>:4222       # join through it
 ```
 
-Across machines, use the other machine's LAN IP and make sure the UDP port
-is reachable.
+| Option | Meaning |
+|---|---|
+| `--port N` | UDP port for this peer (default: any free port) |
+| `--bootstrap HOST:PORT` | join through a specific running peer |
+| `--no-discovery` | don't look for peers on the local network |

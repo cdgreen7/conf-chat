@@ -18,13 +18,22 @@ class Node:
         self.port = port
         self.runner = dht.DhtRunner()
 
-    def start(self, bootstrap: str | None = None, wait: float = 5.0) -> None:
-        """Start the node and optionally join the network through an existing peer."""
-        self.runner.run(port=self.port)
+    def start(self, bootstrap: str | None = None, discover: bool = True, wait: float = 3.0) -> bool:
+        """Start the node and join the network.
+
+        Peers on the same local network find each other automatically
+        (OpenDHT peer discovery over multicast), so no address is needed.
+        `bootstrap` (host:port of any running peer) is only needed to reach
+        peers on another network, or where multicast is blocked.
+        Returns True once at least one other peer is known.
+        """
+        config = dht.DhtConfig()
+        config.setPeerDiscovery(discover, discover)  # find peers on the LAN, and be findable
+        self.runner.run(port=self.port, config=config)
         if bootstrap:
             host, port = parse_peer(bootstrap)
             self.runner.bootstrap(host, port)
-            self.wait_connected(wait)
+        return self.wait_connected(wait)
 
     def wait_connected(self, timeout: float) -> bool:
         """Block until at least one other peer is known (or timeout)."""
