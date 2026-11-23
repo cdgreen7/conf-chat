@@ -10,6 +10,7 @@ envelopes; a worker thread handles them (and may use the DHT freely).
 import queue
 import threading
 import time
+from datetime import datetime
 from typing import Callable
 
 from conf_chat import auth, friends
@@ -45,6 +46,7 @@ class Client:
             "friend_request": self._on_friend_request,
             "friend_accept": self._on_friend_accept,
             "friend_deny": self._on_friend_deny,
+            "dm": self._on_dm,
         }
         self._worker = threading.Thread(target=self._run, name="conf-chat-events", daemon=True)
 
@@ -176,6 +178,25 @@ class Client:
     def _on_friend_deny(self, env: Envelope) -> None:
         if env.sender == self.me:
             self.pending.pop(env["to"], None)
+
+    def send_message(self, to: str, text: str) -> None:
+        to = to.lower()
+        if to not in self.friends:
+            raise ChatError(f"{to} is not your friend")
+        if not text.strip():
+            raise ChatError("empty message")
+        self._deliver(to, make("dm", self.me, to=to, text=text))
+
+    def _on_dm(self, env: Envelope) -> None:
+        if env["to"] != self.me or env.sender not in self.friends:
+            return  # only friends can message us
+        self.out(f"[{env.sender}]{self._when(env)} {env['text']}")
+
+    def _when(self, env: Envelope) -> str:
+        """Timestamp label for messages that arrived while we were offline."""
+        if env.ts >= self.login_ts:
+            return ""
+        return f" ({datetime.fromtimestamp(env.ts):%b %d %H:%M}, while you were offline)"
 
     def _announce(self, online: bool) -> None:
         # Heartbeats don't wait for acknowledgement; the goodbye does, so it

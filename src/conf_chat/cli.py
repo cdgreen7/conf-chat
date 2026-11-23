@@ -209,6 +209,12 @@ class Shell(cmd.Cmd):
                 print(f"declined {a[0].lower()}")
 
     @needs_login
+    def do_msg(self, line):
+        """msg <friend> <text> -- send a message (delivered later if they are offline)"""
+        if (a := self.args(line, 2, "msg <friend> <text>")):
+            self._try(self.client.send_message, a[0], a[1])
+
+    @needs_login
     def do_passwd(self, _):
         """passwd -- change your password"""
         old = getpass.getpass("Current password: ")
