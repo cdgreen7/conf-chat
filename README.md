@@ -46,7 +46,7 @@ bindings included) from PyPI:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. Clone this fork
-git clone https://github.com/<your-username>/conf-chat.git
+git clone https://github.com/cdgreen7/conf-chat.git
 cd conf-chat
 
 # 3. Install Python 3.13+ (if missing) and the dependencies from uv.lock
