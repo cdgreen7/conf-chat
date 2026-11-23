@@ -11,7 +11,7 @@ import getpass
 import sys
 import threading
 
-from conf_chat import auth
+from conf_chat import auth, friends
 from conf_chat.client import Client
 from conf_chat.dht import Node
 
@@ -143,6 +143,18 @@ class Shell(cmd.Cmd):
         """status -- show this peer's id, port and number of known peers"""
         print(f"peer {self.node.node_id}  port {self.node.bound_port}  "
               f"peers {self.node.connected_peers()}")
+
+    @needs_login
+    def do_search(self, line):
+        """search <name words...> -- find users whose full name contains all the words"""
+        if not line.strip():
+            print("usage: search <name words...>")
+            return
+        results = friends.search(self.node, line)
+        if not results:
+            print("no matches")
+        for u in results:
+            print(f"  {u.username:<20} {u.full_name}")
 
     @needs_login
     def do_passwd(self, _):

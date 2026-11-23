@@ -2,6 +2,7 @@
 
 from typing import Callable
 
+from conf_chat import friends
 from conf_chat.auth import User
 
 
@@ -16,6 +17,7 @@ class Client:
         return self.user.username
 
     def start(self) -> "Client":
+        friends.index_name(self.node, self.user)  # keep our search entries alive while online
         return self
 
     def close(self) -> None:
