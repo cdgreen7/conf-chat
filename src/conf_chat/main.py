@@ -14,6 +14,8 @@ def parse_args():
                         "network (peers on the same network are found automatically)")
     p.add_argument("--no-discovery", action="store_true",
                    help="don't look for peers on the local network")
+    p.add_argument("--data-dir", default=".confchat",
+                   help="where each user's local state is kept (default ./.confchat)")
     p.add_argument("--seed", action="store_true",
                    help="run a headless peer with no user, which keeps storing and serving "
                         "messages while users are offline")
@@ -34,7 +36,7 @@ def main():
         print(f"Connected: {node.connected_peers()} peer(s) found")
     else:
         print("No other peers found yet; you are the first peer (others will find you).")
-    shell = Shell(node)
+    shell = Shell(node, args.data_dir)
     try:
         if args.seed:
             run_seed()

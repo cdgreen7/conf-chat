@@ -16,6 +16,7 @@ from typing import Callable
 from conf_chat import auth, friends
 from conf_chat.auth import User
 from conf_chat.models import Envelope, make
+from conf_chat.store import Store
 
 
 class ChatError(Exception):
@@ -27,10 +28,12 @@ def inbox(username: str) -> str:
 
 
 class Client:
-    def __init__(self, node, user: User, out: Callable[[str], None] = print):
+    def __init__(self, node, user: User, out: Callable[[str], None] = print,
+                 store: Store | None = None):
         self.node = node
         self.user = user
         self.out = out
+        self.store = store or Store(None)
         self.login_ts = time.time()
         self.lock = threading.RLock()
         self.seen: set[str] = set()
@@ -56,6 +59,7 @@ class Client:
 
     def start(self) -> "Client":
         friends.index_name(self.node, self.user)  # keep our search entries alive while online
+        self._load()
         self._worker.start()
         self.subscribe(inbox(self.me))
         self._announce(online=True)
@@ -72,6 +76,7 @@ class Client:
         self._listens.clear()
         self._events.put(None)
         self._worker.join(timeout=5)
+        self._save()
 
     def sync(self) -> None:
         """Wait until every queued event has been handled."""
@@ -97,6 +102,8 @@ class Client:
                 if env is None:
                     return
                 self._handle(env)
+                if self._events.qsize() == 0:
+                    self._save()  # batch saves: only once the queue is drained
             except Exception as e:  # never let one bad value kill the session
                 self.out(f"! error handling {env.type}: {e}")
             finally:
@@ -113,6 +120,21 @@ class Client:
             handler = self._handlers.get(env.type)
             if handler:
                 handler(env)
+
+    def _load(self) -> None:
+        state = self.store.load()
+        with self.lock:
+            self.seen.update(state.get("seen", []))
+            self.outgoing.update(state.get("outgoing", []))
+            self.pending.update(state.get("pending", {}))
+            for name in state.get("friends", []):
+                self._add_friend(name)
+
+    def _save(self) -> None:
+        with self.lock:
+            state = {"seen": sorted(self.seen), "friends": sorted(self.friends),
+                     "outgoing": sorted(self.outgoing), "pending": dict(self.pending)}
+        self.store.save(state)
 
     def _deliver(self, to: str, env: Envelope) -> None:
         self.node.put(inbox(to), env)

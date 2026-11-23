@@ -14,6 +14,7 @@ import threading
 from conf_chat import auth, friends
 from conf_chat.client import ChatError, Client
 from conf_chat.dht import Node
+from conf_chat.store import Store
 
 _print_lock = threading.Lock()
 
@@ -31,9 +32,10 @@ def needs_login(method):
 class Shell(cmd.Cmd):
     prompt = "> "
 
-    def __init__(self, node: Node):
+    def __init__(self, node: Node, data_dir: str = ".confchat"):
         super().__init__()
         self.node = node
+        self.data_dir = data_dir
         self.client: Client | None = None
         self.quitting = False
         self.at_prompt = False  # True while cmd is waiting for input
@@ -92,7 +94,8 @@ class Shell(cmd.Cmd):
     def start_session(self, user: auth.User) -> None:
         self.prompt = f"{user.username}> "
         print(f"Welcome, {user.full_name}!")
-        self.client = Client(self.node, user, out=self.notify).start()
+        store = Store.for_user(self.data_dir, user.username)
+        self.client = Client(self.node, user, out=self.notify, store=store).start()
         self.client.sync()  # finish replaying the inbox before showing the prompt
 
     def close(self) -> None:
