@@ -1,6 +1,7 @@
 import argparse
 import time
 
+from conf_chat.cli import Shell
 from conf_chat.dht import Node
 
 
@@ -13,7 +14,16 @@ def parse_args():
                         "network (peers on the same network are found automatically)")
     p.add_argument("--no-discovery", action="store_true",
                    help="don't look for peers on the local network")
+    p.add_argument("--seed", action="store_true",
+                   help="run a headless peer with no user, which keeps storing and serving "
+                        "messages while users are offline")
     return p.parse_args()
+
+
+def run_seed() -> None:
+    print("Running as a headless seed peer. Ctrl-C to stop.")
+    while True:
+        time.sleep(1)
 
 
 def main():
@@ -24,12 +34,13 @@ def main():
         print(f"Connected: {node.connected_peers()} peer(s) found")
     else:
         print("No other peers found yet; you are the first peer (others will find you).")
-    print(f"This peer: UDP port {node.bound_port}, id {node.node_id}")
     try:
-        while True:
-            time.sleep(1)
+        if args.seed:
+            run_seed()
+        else:
+            Shell(node).cmdloop()
     except KeyboardInterrupt:
-        pass
+        print()
     finally:
         node.stop()
 
